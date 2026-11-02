@@ -26,7 +26,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import com.boxyield.app.data.AppSettings
 import com.boxyield.app.data.FeedSource
@@ -34,25 +33,22 @@ import com.boxyield.app.data.FeedSource
 @Composable
 fun SettingsScreen(initial: AppSettings, onSave: (AppSettings) -> Unit, modifier: Modifier = Modifier) {
     var s by remember(initial) { mutableStateOf(initial) }
-    // Text fields edit strings so partially typed numbers ("0.") aren't lost.
-    val nums = remember(initial) {
+    // Numbers are edited as text so partially typed values ("0.") aren't lost.
+    var nums by remember(initial) {
         mutableStateOf(
             mapOf(
-                "fee" to initial.feePerContract.toString(),
+                "refresh" to initial.refreshMinutes.toString(),
                 "fed" to (initial.federalOrdinary * 100).toString(),
                 "ltcg" to (initial.federalLongTerm * 100).toString(),
                 "state" to (initial.state * 100).toString(),
                 "niit" to (initial.niit * 100).toString(),
                 "hysa" to initial.savingsRatePct.toString(),
                 "mmf" to initial.moneyMarketRatePct.toString(),
-                "minWidth" to initial.minWidth.toString(),
-                "window" to initial.windowMillis.toString(),
-                "maxDays" to initial.maxDays.toString(),
             )
         )
     }
-    fun n(key: String) = nums.value.getValue(key)
-    fun setN(key: String, v: String) { nums.value = nums.value + (key to v) }
+    fun n(key: String) = nums.getValue(key)
+    fun setN(key: String, v: String) { nums = nums + (key to v) }
 
     Column(
         modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp),
@@ -68,24 +64,17 @@ fun SettingsScreen(initial: AppSettings, onSave: (AppSettings) -> Unit, modifier
                 Text(src.label)
             }
         }
-        when (s.source) {
-            FeedSource.TRADIER -> Secret("Tradier API access token", s.tradierToken) { s = s.copy(tradierToken = it) }
-            FeedSource.POLYGON -> {
-                Secret("Massive / Polygon API key", s.polygonApiKey) { s = s.copy(polygonApiKey = it) }
-                Field("Multi-leg condition codes (comma-separated)", s.multiLegConditions) { s = s.copy(multiLegConditions = it) }
-            }
-            FeedSource.SIMULATED -> Unit
+        if (s.source == FeedSource.SCHWAB_FILE) {
+            OutlinedTextField(
+                s.snapshotUrl, { s = s.copy(snapshotUrl = it) },
+                label = { Text("Share link to boxyield-latest.json") },
+                supportingText = { Text("Google Drive: Share → General access → Anyone with the link → Copy link") },
+                singleLine = true, modifier = Modifier.fillMaxWidth(),
+            )
+            Num("Check for new data every (minutes)", n("refresh")) { setN("refresh", it) }
         }
 
-        Section("Detection")
-        Field("Option roots", s.roots) { s = s.copy(roots = it) }
-        Num("Max days to expiry to subscribe", n("maxDays")) { setN("maxDays", it) }
-        Num("Min box width (points)", n("minWidth")) { setN("minWidth", it) }
-        Num("Max ms between legs", n("window")) { setN("window", it) }
-        Toggle("Only accept prints flagged multi-leg", s.requireMultiLegFlag) { s = s.copy(requireMultiLegFlag = it) }
-
-        Section("Costs & taxes (marginal rates, %)")
-        Num("Commission + fees per contract ($)", n("fee")) { setN("fee", it) }
+        Section("Taxes (marginal rates, %)")
         Toggle("Tax-advantaged account (IRA/401k)", s.taxAdvantaged) { s = s.copy(taxAdvantaged = it) }
         if (!s.taxAdvantaged) {
             Num("Federal ordinary income", n("fed")) { setN("fed", it) }
@@ -103,24 +92,21 @@ fun SettingsScreen(initial: AppSettings, onSave: (AppSettings) -> Unit, modifier
                 fun d(k: String, def: Double) = n(k).toDoubleOrNull() ?: def
                 onSave(
                     s.copy(
-                        feePerContract = d("fee", s.feePerContract),
+                        refreshMinutes = n("refresh").toIntOrNull()?.coerceAtLeast(1) ?: s.refreshMinutes,
                         federalOrdinary = d("fed", s.federalOrdinary * 100) / 100,
                         federalLongTerm = d("ltcg", s.federalLongTerm * 100) / 100,
                         state = d("state", s.state * 100) / 100,
                         niit = d("niit", s.niit * 100) / 100,
                         savingsRatePct = d("hysa", s.savingsRatePct),
                         moneyMarketRatePct = d("mmf", s.moneyMarketRatePct),
-                        minWidth = d("minWidth", s.minWidth),
-                        windowMillis = n("window").toLongOrNull() ?: s.windowMillis,
-                        maxDays = n("maxDays").toIntOrNull() ?: s.maxDays,
                     )
                 )
             },
             modifier = Modifier.fillMaxWidth(),
-        ) { Text("Save & restart feed") }
+        ) { Text("Save & reload") }
         Text(
-            "Keys are stored only on this device. Box spreads carry broker margin, assignment-on-American-style and " +
-                "execution risks; this app only analyzes printed trades. Not investment or tax advice.",
+            "Rates come from option quotes, not executed trades. Real box orders usually fill between the natural " +
+                "lend rate and the mid rate. Not investment or tax advice.",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
@@ -134,21 +120,10 @@ private fun Section(title: String) {
 }
 
 @Composable
-private fun Field(label: String, value: String, onChange: (String) -> Unit) =
-    OutlinedTextField(value, onChange, label = { Text(label) }, singleLine = true, modifier = Modifier.fillMaxWidth())
-
-@Composable
 private fun Num(label: String, value: String, onChange: (String) -> Unit) =
     OutlinedTextField(
         value, onChange, label = { Text(label) }, singleLine = true, modifier = Modifier.fillMaxWidth(),
         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-    )
-
-@Composable
-private fun Secret(label: String, value: String, onChange: (String) -> Unit) =
-    OutlinedTextField(
-        value, onChange, label = { Text(label) }, singleLine = true, modifier = Modifier.fillMaxWidth(),
-        visualTransformation = PasswordVisualTransformation(),
     )
 
 @Composable

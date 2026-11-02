@@ -14,53 +14,55 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.Alignment
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.boxyield.app.UiState
-import com.boxyield.core.BoxObservation
-import java.util.Locale
+import com.boxyield.core.RankedRate
 
 @Composable
-fun TradesScreen(state: UiState, onClear: () -> Unit, modifier: Modifier = Modifier) {
+fun ExpiriesScreen(state: UiState, onRefresh: () -> Unit, modifier: Modifier = Modifier) {
+    var byDate by rememberSaveable { mutableStateOf(false) }
+    val rows = if (byDate) state.ranked.sortedBy { it.rate.days } else state.ranked
     LazyColumn(
         modifier.fillMaxSize(),
         contentPadding = PaddingValues(16.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         item {
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                Text("${state.observations.size} boxes · ${state.printsSeen} prints", style = MaterialTheme.typography.titleMedium)
-                TextButton(onClick = onClear) { Text("Clear") }
+            SnapshotHeader("All expirations", state, onRefresh)
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                TextButton(onClick = { byDate = false }) { Text(if (byDate) "Best spread" else "● Best spread") }
+                TextButton(onClick = { byDate = true }) { Text(if (byDate) "● By date" else "By date") }
             }
         }
-        items(state.observations) { o ->
-            TradeRow(o, state.settings.feePerContract)
-        }
+        items(rows) { r -> RateRow(r, state.settings.taxAdvantaged) }
     }
 }
 
 @Composable
-private fun TradeRow(o: BoxObservation, fee: Double) {
-    val b = o.box
+private fun RateRow(r: RankedRate, taxAdvantaged: Boolean) {
+    val e = r.rate
     Card(Modifier.fillMaxWidth()) {
         Column(Modifier.padding(12.dp)) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                Text("${b.root} ${b.expiry} (${tenor(o.days)})", fontWeight = FontWeight.SemiBold)
-                Text(pct(o.yieldPct), fontWeight = FontWeight.SemiBold)
+                Text("${e.root} ${e.expiry} (${tenor(e.days)})", fontWeight = FontWeight.SemiBold)
+                Text(pct(e.midYieldPct), fontWeight = FontWeight.SemiBold)
             }
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                Text("vs UST ${pct(e.treasuryPct)}", style = MaterialTheme.typography.bodyMedium)
                 Text(
-                    "${strike(b.lowStrike)}/${strike(b.highStrike)} × ${b.quantity} @ ${String.format(Locale.US, "%.2f", b.price)}",
+                    if (taxAdvantaged) bps(r.spreadBps) else "${bps(r.spreadBps)} · after-tax ${bps(r.afterTaxSpreadBps)}",
                     style = MaterialTheme.typography.bodyMedium,
                 )
-                Text("vs UST ${pct(o.treasuryPct)} (${bps(o.spreadBps)})", style = MaterialTheme.typography.bodyMedium)
             }
             Text(
-                "${time(b.timestampMillis)} ET · face ${money(b.faceValue)} · legs within ${b.legSpreadMillis}ms" +
-                    (if (b.flaggedMultiLeg) " · multi-leg" else "") +
-                    " · net of \$${fee}/contract: ${pct(o.netYieldPct)}",
+                "Natural lend ${pct(e.lendYieldPct)} / borrow ${pct(e.borrowYieldPct)} · " +
+                    "${strike(e.lowStrike)}–${strike(e.highStrike)} · ${e.strikes} strikes · vol ${e.volume}",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )

@@ -117,3 +117,29 @@ class CoreTest {
         assertEquals(ranks.sortedDescending(), ranks)
     }
 }
+
+class RateRankingTest {
+    private fun rate(days: Int, mid: Double, tsy: Double?) = ExpiryRate(
+        "\$SPX", "SPXW", java.time.LocalDate.of(2026, 11, 2).plusDays(days.toLong()), days,
+        mid, mid - 0.1, mid + 0.1, tsy, 5000.0, 7000.0, 40, 100,
+    )
+
+    @Test fun ranksByAfterTaxSpreadAndBuckets() {
+        val tax = TaxProfile(federalOrdinary = 0.35, federalLongTerm = 0.15, state = 0.0)
+        val ranked = RateRanking.rank(listOf(rate(30, 4.2, 4.0), rate(400, 4.1, 3.6), rate(45, 4.0, 4.0)), tax)
+        assertEquals(listOf(400, 30, 45), ranked.map { it.rate.days })
+        // no state tax: box 0.6*15%+0.4*35% = 23% vs treasury 35% -> 4.1*0.77 - 3.6*0.65 = 0.817 => 81.7bp
+        assertEquals(81.7, ranked[0].afterTaxSpreadBps!!, 1e-9)
+        assertEquals(50.0, ranked[0].spreadBps!!, 1e-9)
+        assertEquals(40.0, ranked[0].lendSpreadBps!!, 1e-9)
+        val buckets = RateRanking.byBucket(ranked)
+        assertEquals(listOf("1 – 2 yr", "1 wk – 1 mo", "1 – 3 mo"), buckets.map { it.bucket.label })
+    }
+
+    @Test fun demoSnapshotIsSane() {
+        val curve = TreasuryCurve(java.time.LocalDate.of(2026, 10, 30), mapOf(30 to 4.0, 365 to 3.7, 1826 to 3.75))
+        val snap = SimulatedMarket(curve, Random(1)).snapshot(java.time.Instant.parse("2026-11-02T15:00:00Z"))
+        assertTrue(snap.expiries.size > 50)
+        snap.expiries.forEach { assertTrue(it.lendYieldPct!! < it.midYieldPct && it.midYieldPct < it.borrowYieldPct!!) }
+    }
+}

@@ -75,4 +75,28 @@ class SimulatedMarket(
     )
 
     private fun round2(x: Double) = Math.round(x * 100) / 100.0
+
+    /** A plausible quoted-rate snapshot (what the Schwab collector produces), for demo mode. */
+    fun snapshot(now: Instant): RateSnapshot {
+        val today = now.atZone(zone).toLocalDate()
+        val rates = ArrayList<ExpiryRate>()
+        var d = today.plusDays(1)
+        while (ChronoUnit.DAYS.between(today, d) <= 1100) {
+            val days = ChronoUnit.DAYS.between(today, d).toInt()
+            val weekly = d.dayOfWeek.value <= 5 && (days <= 60 || (d.dayOfWeek.value == 5 && (days <= 400 || d.dayOfMonth in 15..21)))
+            if (weekly) {
+                val tsy = curve.yieldAt(days)
+                val mid = tsy + 0.20 + days / 3650.0 * 0.25 + random.nextDouble(-0.06, 0.06)
+                val edge = 0.4 * 365.0 / days.coerceAtLeast(20) / 10 + 0.03
+                rates += ExpiryRate(
+                    "\$SPX", "SPXW", d, days, round4(mid), round4(mid - edge), round4(mid + edge), round4(tsy),
+                    5000.0, 7000.0, 40, random.nextLong(100, 20_000),
+                )
+            }
+            d = d.plusDays(1)
+        }
+        return RateSnapshot(now, today, curve, rates)
+    }
+
+    private fun round4(x: Double) = Math.round(x * 10_000) / 10_000.0
 }

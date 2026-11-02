@@ -32,7 +32,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.boxyield.app.ui.DurationsScreen
 import com.boxyield.app.ui.SettingsScreen
-import com.boxyield.app.ui.TradesScreen
+import com.boxyield.app.ui.ExpiriesScreen
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -62,15 +62,15 @@ private fun App(vm: BoxViewModel = viewModel()) {
         bottomBar = {
             NavigationBar {
                 NavigationBarItem(tab == 0, { tab = 0 }, { Icon(Icons.Filled.Star, null) }, label = { Text("Durations") })
-                NavigationBarItem(tab == 1, { tab = 1 }, { Icon(Icons.AutoMirrored.Filled.List, null) }, label = { Text("Trades") })
+                NavigationBarItem(tab == 1, { tab = 1 }, { Icon(Icons.AutoMirrored.Filled.List, null) }, label = { Text("Expirations") })
                 NavigationBarItem(tab == 2, { tab = 2 }, { Icon(Icons.Filled.Settings, null) }, label = { Text("Settings") })
             }
         },
     ) { pad ->
         val m = Modifier.padding(pad)
         when (tab) {
-            0 -> DurationsScreen(state, m)
-            1 -> TradesScreen(state, onClear = vm::clear, modifier = m)
+            0 -> DurationsScreen(state, onRefresh = vm::refresh, modifier = m)
+            1 -> ExpiriesScreen(state, onRefresh = vm::refresh, modifier = m)
             else -> SettingsScreen(state.settings, onSave = vm::updateSettings, modifier = m)
         }
     }

@@ -15,6 +15,9 @@ jobs:
           distribution: temurin
           java-version: 17
       - uses: gradle/actions/setup-gradle@v4
+      - name: Collector tests
+        working-directory: collector
+        run: python3 -m unittest -v test_collector
       - name: Core unit tests
         run: ./gradlew :core:test
       - name: Build debug APK
