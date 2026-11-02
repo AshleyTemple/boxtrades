@@ -160,6 +160,50 @@ python3 boxyield_collector.py status
 Your config and tokens live in `~/.boxyield/` and are readable only by your user. Set
 `BOXYIELD_HOME` to keep them somewhere else.
 
+## Quick look from the terminal: `schwab-box-quotes.sh`
+
+For a one-off check of what boxes are on offer right now, without the app, run this script
+on Linux. It needs only `curl` and `jq` (`sudo apt install curl jq`). It shares its
+login with the Python collector, so if you've run `boxyield_collector.py login` you can
+skip the login step.
+
+```bash
+cd boxtrades/collector
+```
+
+Log in once a week. This uses the key and secret saved by `setup`, or the
+`SCHWAB_APP_KEY` and `SCHWAB_APP_SECRET` environment variables:
+
+```bash
+./schwab-box-quotes.sh login
+```
+
+Show SPX boxes from 7 to 800 days out, at least 500 points wide:
+
+```bash
+./schwab-box-quotes.sh
+```
+
+The same for XSP, the 1/10-size SPX that's easier to use with smaller amounts:
+
+```bash
+./schwab-box-quotes.sh -s '$XSP' -w 50
+```
+
+Save to a spreadsheet:
+
+```bash
+./schwab-box-quotes.sh -c > boxes.csv
+```
+
+For each expiration the script searches every quoted strike pair and shows two boxes:
+
+* the cheapest **long box**, which you buy to lend
+* the richest **short box**, which you sell to borrow
+
+It shows each one's price at natural prices (the worst case), its implied rate, and the
+spread over the same-maturity Treasury. Run `./schwab-box-quotes.sh -h` for all options.
+
 ## The app
 
 | Module | What's in it |

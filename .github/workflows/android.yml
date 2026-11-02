@@ -18,6 +18,8 @@ jobs:
       - name: Collector tests
         working-directory: collector
         run: python3 -m unittest -v test_collector
+      - name: Lint box quotes script
+        run: shellcheck -S warning collector/schwab-box-quotes.sh
       - name: Core unit tests
         run: ./gradlew :core:test
       - name: Build debug APK
